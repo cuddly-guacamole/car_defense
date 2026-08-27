@@ -113,7 +113,7 @@ function Public.roll_random_assembler(maxs)
   return {entity = entity_to_spawn, id = id, tier = tier}
 end
 
-function Public.register_random_assembler(entity, id, tier)
+function Public.register_random_assembler(entity, id, tier, group_id)
   local production = Chrono_table.get_production_table()
   if not entity or not entity.valid then return end
   if List[id].kind == "assembler" or List[id].kind == "fluid-assembler" then
@@ -140,50 +140,91 @@ local name = List[id].recipe_override or List[id].name
     })
   end
   
-  production.assemblers[#production.assemblers + 1] = {
+  local key = production.next_assembler_key + 1
+  production.next_assembler_key = key
+  production.assemblers[key] = {
     entity = entity,
     id = id,
     progress = 0,
     produced = 0,
     tier = tier,
     active = false,
-    tag = tag
+    tag = tag,
+    group_id = group_id,
   }
 
-  return List[id].recipe_override or List[id].name
+  return key
 end
 
 function Public.check_activity()
   local production = Chrono_table.get_production_table()
-  local this=WPT.get()
+  local this = WPT.get()
+
+  local to_remove = {}
   for key, factory in pairs(production.assemblers) do
     local entity = factory.entity
-
-    if not entity.valid then
-      factory.active = false
+    if not entity or not entity.valid then
+      local gid = factory.group_id
+      if gid and production.groups[gid] then
+        local new_members = {}
+        for _, mkey in ipairs(production.groups[gid].members) do
+          if mkey ~= key then table.insert(new_members, mkey) end
+        end
+        production.groups[gid].members = new_members
+        if #new_members == 0 then
+          production.groups[gid] = nil
+        end
+      end
       if factory.tag then
         factory.tag.destroy()
       end
-      goto continue
+      table.insert(to_remove, key)
     end
-    if  this.jjc ==2  then 
-      factory.active = true
-      goto continue
-    end
-    local surface = entity.surface
-    local count_ghost = surface.count_entities_filtered{type="entity-ghost",position = entity.position, radius = 5, force = "player"}
-    local count_all = surface.count_entities_filtered{position = entity.position, radius = 5, force = "player"}
-    local count = count_all-count_ghost-surface.count_entities_filtered{type="tile-ghost",position = entity.position, radius = 5, force = "player"}
-    --local entities = surface.find_entities_filtered{position = entity.position, radius = 10, type="entity" , force = game.forces.player,limit =10}
+  end
+  for _, key in ipairs(to_remove) do
+    production.assemblers[key] = nil
+  end
 
-    if count > 10   then
-      factory.active = true
-    --  flying_text(surface, entity.position, "Active", {r = 0, g = 0.98, b = 0})
-    else
-      factory.active = false
-  --    flying_text(surface, entity.position, "Not Active", {r = 0.98, g = 0, b = 0})
+  for gid, group in pairs(production.groups) do
+    if this.jjc == 2 then
+      group.active = true
+      goto continue_group
     end
-    ::continue::
+
+    local triggered = false
+    for _, mkey in ipairs(group.members) do
+      local factory = production.assemblers[mkey]
+      if not factory then goto continue_member_check end
+      local entity = factory.entity
+      if not entity or not entity.valid then goto continue_member_check end
+      local surface = entity.surface
+      local count_ghost = surface.count_entities_filtered{type="entity-ghost", position = entity.position, radius = 5, force = "player"}
+      local count_all = surface.count_entities_filtered{position = entity.position, radius = 5, force = "player"}
+      local count_tile_ghost = surface.count_entities_filtered{type="tile-ghost", position = entity.position, radius = 5, force = "player"}
+      local count = count_all - count_ghost - count_tile_ghost
+      if count > 10 then
+        triggered = true
+        break
+      end
+      ::continue_member_check::
+    end
+
+    group.active = triggered
+    ::continue_group::
+  end
+
+  for key, factory in pairs(production.assemblers) do
+    local entity = factory.entity
+    if entity and entity.valid then
+      local gid = factory.group_id
+      if gid and production.groups[gid] then
+        entity.destructible = production.groups[gid].active
+        factory.active = production.groups[gid].active
+      else
+        entity.destructible = false
+      end
+      entity.minable_flag = false
+    end
   end
 end
 

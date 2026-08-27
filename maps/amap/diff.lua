@@ -104,6 +104,7 @@ local set_diff = function()
     end
     this.productionsphere.experience = {}
     this.productionsphere.assemblers = {}
+    this.productionsphere.groups = {}
     this.enable_wild_factorio =false
     game.print({"amap.biter_kill_factorio"})
   end

@@ -61,6 +61,7 @@ local player_build = {'steam-turbine', 'assembling-machine-1', 'assembling-machi
 local tianfu = require 'maps.amap.tianfu'
 
 require 'maps.amap.mining'
+require 'maps.amap.mining_drill_red_tag'
 require "modules.rocks_yield_ore_veins"
 
 require 'maps.amap.auto_put_turret'
@@ -983,13 +984,27 @@ local on_tick = function()
         -- end
 
         -- 定时检测玩家是否意外丢失角色，没有则创建（死亡复生/编辑器模式不干预）
+        -- 编辑器守卫（2026-08-28）：同时检查 controller_type 与 physical_controller_type——
+        -- 编辑器模式进入远程视图时 controller_type 会变 remote(7)，仅查 controller_type 会误判"无角色"
+        -- physical_controller_type 忽略远程视图，编辑器+远程视图时仍为 editor(4)
+        -- 普通玩家缺角色持续 300 tick（5 秒）才补建，吸收编辑器切换瞬态
+        this.no_character_since = this.no_character_since or {}
         for _, player in pairs(game.connected_players) do
-            if not player.character
-                and player.controller_type ~= defines.controllers.editor
-                and not player.ticks_to_respawn
-            then
-                player.set_controller({type = defines.controllers.god})
-                player.create_character()
+            local phys_ct = player.physical_controller_type
+            local is_editor = player.controller_type == defines.controllers.editor
+                or (phys_ct ~= nil and phys_ct == defines.controllers.editor)
+            if is_editor then
+                this.no_character_since[player.index] = nil
+            elseif not player.character and not player.ticks_to_respawn then
+                if not this.no_character_since[player.index] then
+                    this.no_character_since[player.index] = tick
+                elseif tick - this.no_character_since[player.index] >= 300 then
+                    player.set_controller({type = defines.controllers.god})
+                    player.create_character()
+                    this.no_character_since[player.index] = nil
+                end
+            else
+                this.no_character_since[player.index] = nil
             end
         end
     end

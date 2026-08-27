@@ -244,15 +244,81 @@ function Public.rand_building(surface, maxs, position)
     return
   end
 
-  local factory = Factories.roll_random_assembler(maxs)
-  if not factory then return end
+  -- 概率降6倍：每6次命中才生成一组6个（总量与改造前持平）
+  if math.random(1, 6) ~= 1 then
+    return
+  end
 
-  local entity = surface.create_entity({name = factory.entity, force = "neutral", position = position})
-  entity.destructible = false
-  entity.minable_flag = false
-  entity.operable = false
-  entity.disabled_by_script = true
-  Factories.register_random_assembler(entity, factory.id, factory.tier)
+  -- 附近已有组装机则跳过（避免组重叠互相破坏导致图标残留）
+  if #surface.find_entities_filtered{position = position, radius = 8, type = "assembling-machine"} > 0 then
+    return
+  end
+
+  local this = WPT.get()
+  local production = WPT.get_production_table()
+
+  this.productionsphere.next_group_id = this.productionsphere.next_group_id + 1
+  local group_id = this.productionsphere.next_group_id
+
+  local offsets = {
+    {x = -4, y = -2}, {x =  0, y = -2}, {x =  4, y = -2},
+    {x = -4, y =  2}, {x =  0, y =  2}, {x =  4, y =  2},
+  }
+
+  local members = {}
+  local center = {x = position.x, y = position.y}
+  local any_created = false
+
+  for _, off in ipairs(offsets) do
+    local pos = {x = position.x + off.x, y = position.y + off.y}
+
+    local factory = Factories.roll_random_assembler(maxs)
+    if not factory then goto continue_member end
+
+    -- 强制清空障碍物（实体除角色/矿 + 水地形→草地）再生成
+    for _, e in ipairs(surface.find_entities_filtered{position = pos, radius = 2}) do
+      if e.valid and e.type ~= "character" and e.type ~= "resource" and e.type ~= "assembling-machine" and e.type ~= "furnace" then e.destroy() end
+    end
+    local tiles = {}
+    for dx = -2, 2 do
+      for dy = -2, 2 do
+        local tx = math.floor(pos.x) + dx
+        local ty = math.floor(pos.y) + dy
+        local t = surface.get_tile({x = tx, y = ty})
+        if t.valid and (t.name == "water" or t.name == "deep-water") then
+          -- 水地形→草地（SA 瓦片名为 grass-1，1.x 的 grassland 已废弃：2026-08-28 headless 发现 Unknown tile name 崩溃修复）
+          table.insert(tiles, {name = "grass-1", position = {x = tx, y = ty}})
+        end
+      end
+    end
+    if #tiles > 0 then surface.set_tiles(tiles) end
+
+    local entity = surface.create_entity({name = factory.entity, force = "neutral", position = pos})
+    if not entity or not entity.valid then goto continue_member end
+    entity.destructible = false
+    entity.minable_flag = false
+    entity.operable = false
+    entity.disabled_by_script = true
+
+    local key = Factories.register_random_assembler(entity, factory.id, factory.tier, group_id)
+    if type(key) == "number" then
+      table.insert(members, key)
+      any_created = true
+    end
+
+    ::continue_member::
+  end
+
+  if any_created then
+    production.groups[group_id] = {
+      members = members,
+      active = false,
+      center = center,
+    }
+
+  else
+    this.productionsphere.next_group_id = group_id - 1
+  end
 end
 
 function Public.rand_shop(surface, position, max)
