@@ -401,8 +401,7 @@ local function apply_planet_surface_settings(world_number, active_surface_index)
 end
 
 local function apply_technology_settings(world_number)
-    -- 所有世界开局默认解锁悬崖炸药科技
-    game.forces.player.technologies['cliff-explosives'].researched = true
+    -- 2026-08-27 所有世界不再开局赠送悬崖炸药科技（cliff-explosives），由玩家手动研究
 
     -- World 框架优先
     local world_def = World.get(world_number)
@@ -612,13 +611,8 @@ function Public.reset_map()
   global.watery_world_fishes = {}
   
 game.forces.player.technologies['atomic-bomb'].enabled=false
--- 世界14仅开局解锁高级星岩处理(advanced-asteroid-processing)，由 world_14 def.unlocked_technologies 控制；
--- asteroid-reprocessing 仍留给玩家手动研究（非 14 世界照旧开局解锁全套）；
--- 世界21熔岩之心同样不自动解锁（玩家按需手动研究）
-if world_number ~= 14 and world_number ~= 21 then
-  game.forces.player.technologies['advanced-asteroid-processing'].researched=true
-  game.forces.player.technologies['asteroid-reprocessing'].researched=true
-end
+-- 2026-08-27 星岩科技仅世界14解锁：advanced-asteroid-processing（高级星岩处理）/ asteroid-reprocessing（星岩再处理）
+-- 均由 world_14 def.unlocked_technologies 控制，其他世界开局不再自动送（手动研究）
   -- 初始化WPT表中的捕鱼车数据
   for _, prototype in pairs(prototypes.entity) do
     if prototype.type == "fish" then
@@ -764,8 +758,8 @@ local gain_xp = function()
     local world_def = World.get(this.world_number)
 
     for _, player in pairs(game.connected_players) do
-        -- 副本隔离：副本内玩家不获得主世界被动经验
-        if player.surface and Instance.is_dungeon_surface(player.surface.name) then
+        -- 副本隔离：副本内玩家不获得主世界被动经验（用 physical_surface 判断角色真实位置）
+        if player.physical_surface and Instance.is_dungeon_surface(player.physical_surface.name) then
             goto continue_gain_xp
         end
 
