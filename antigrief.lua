@@ -17,8 +17,12 @@ local de = defines.events
 
 local format = string.format
 
+-- 2026-08-27 废除：反捣乱者功能已停用。模块局部常量锁死为 false（外部无法改写），
+-- 所有事件回调守卫恒 return；事件监听注册也已注释停用，功能完全失效、不占算力。
+local ANTIGRIEF_ENABLED = false
+
 local this = {
-    enabled = true,
+    -- 注意：不要在此表加 enabled 字段。反捣乱者已废除，由模块局部常量锁死，避免被外部（如 config 面板开关）改写。
     landfill_history = {},
     capsule_history = {},
     friendly_fire_history = {},
@@ -170,7 +174,7 @@ local function do_action(player, prefix, msg, ban_msg, kill)
 end
 
 local function on_marked_for_deconstruction(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local tracker = session.get_session_table()
@@ -197,7 +201,7 @@ local function on_marked_for_deconstruction(event)
 end
 
 local function on_player_ammo_inventory_changed(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local tracker = session.get_session_table()
@@ -228,7 +232,7 @@ end
 local function on_player_joined_game(event)
     local player = game.get_player(event.player_index)
     local trusted = session.get_trusted_table()
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         if not trusted[player.name] then
             trusted[player.name] = true
         end
@@ -241,7 +245,7 @@ local function on_player_joined_game(event)
 end
 
 local function on_player_built_tile(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local placed_tiles = event.tiles
@@ -276,7 +280,7 @@ local function on_player_built_tile(event)
 end
 
 local function on_built_entity(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local tracker = session.get_session_table()
@@ -309,7 +313,7 @@ end
 
 --Capsule History and Antigrief
 local function on_player_used_capsule(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local trusted = session.get_trusted_table()
@@ -389,7 +393,7 @@ end
 
 --Mining Thieves History
 local function on_player_mined_entity(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -555,7 +559,7 @@ local function on_pre_player_mined_item(event)
 end
 
 local function on_player_cursor_stack_changed(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local tracker = session.get_session_table()
@@ -599,7 +603,7 @@ local function on_player_cursor_stack_changed(event)
 end
 
 local function on_player_cancelled_crafting(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -650,7 +654,7 @@ local function on_player_cancelled_crafting(event)
 end
 
 local function on_init()
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local branch_version = '0.18.35'
@@ -672,7 +676,7 @@ local function on_init()
 end
 
 local function on_permission_group_added(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -688,7 +692,7 @@ local function on_permission_group_added(event)
 end
 
 local function on_permission_group_deleted(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -704,7 +708,7 @@ local function on_permission_group_deleted(event)
 end
 
 local function on_permission_group_edited(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -745,7 +749,7 @@ local function on_permission_group_edited(event)
 end
 
 local function on_permission_string_imported(event)
-    if not this.enabled then
+    if not ANTIGRIEF_ENABLED then
         return
     end
     local player = game.get_player(event.player_index)
@@ -888,32 +892,33 @@ function Public.get(key)
     end
 end
 
-Event.on_init(on_init)
+-- 2026-08-27 废除：以下全部事件监听注册已停用，反捣乱者不再触发、不再占用算力。
+--Event.on_init(on_init)
 
-Event.add(de.on_built_entity, on_built_entity,{
-    {filter = "type", type = 'land-mine'},
-    {filter = "type", type = 'character'},
-    {filter = "type", type = 'car'},
-    {filter = "type", type = 'wall'},
-    {filter = "type", type = 'spider-vehicle'},
-    {filter = "type", type = 'ammo-turret'},
-    {filter = "type", type = 'electric-turret'},
-    {filter = "type", type = 'fluid-turret'},
-    {filter = "type", type = 'radar'},
-    {filter = "type", type = 'roboport'}
-})
-Event.add(de.on_gui_opened, on_gui_opened)
-Event.add(de.on_marked_for_deconstruction, on_marked_for_deconstruction)
-Event.add(de.on_player_ammo_inventory_changed, on_player_ammo_inventory_changed)
---Event.add(de.on_player_built_tile, on_player_built_tile)
-Event.add(de.on_pre_player_mined_item, on_pre_player_mined_item)
---Event.add(de.on_player_used_capsule, on_player_used_capsule)
-Event.add(de.on_player_cursor_stack_changed, on_player_cursor_stack_changed)
---Event.add(de.on_player_cancelled_crafting, on_player_cancelled_crafting)
-Event.add(de.on_player_joined_game, on_player_joined_game)
-Event.add(de.on_permission_group_added, on_permission_group_added)
-Event.add(de.on_permission_group_deleted, on_permission_group_deleted)
-Event.add(de.on_permission_group_edited, on_permission_group_edited)
-Event.add(de.on_permission_string_imported, on_permission_string_imported)
+--Event.add(de.on_built_entity, on_built_entity,{
+--    {filter = "type", type = 'land-mine'},
+--    {filter = "type", type = 'character'},
+--    {filter = "type", type = 'car'},
+--    {filter = "type", type = 'wall'},
+--    {filter = "type", type = 'spider-vehicle'},
+--    {filter = "type", type = 'ammo-turret'},
+--    {filter = "type", type = 'electric-turret'},
+--    {filter = "type", type = 'fluid-turret'},
+--    {filter = "type", type = 'radar'},
+--    {filter = "type", type = 'roboport'}
+--})
+--Event.add(de.on_gui_opened, on_gui_opened)
+--Event.add(de.on_marked_for_deconstruction, on_marked_for_deconstruction)
+--Event.add(de.on_player_ammo_inventory_changed, on_player_ammo_inventory_changed)
+----Event.add(de.on_player_built_tile, on_player_built_tile)
+--Event.add(de.on_pre_player_mined_item, on_pre_player_mined_item)
+----Event.add(de.on_player_used_capsule, on_player_used_capsule)
+--Event.add(de.on_player_cursor_stack_changed, on_player_cursor_stack_changed)
+----Event.add(de.on_player_cancelled_crafting, on_player_cancelled_crafting)
+--Event.add(de.on_player_joined_game, on_player_joined_game)
+--Event.add(de.on_permission_group_added, on_permission_group_added)
+--Event.add(de.on_permission_group_deleted, on_permission_group_deleted)
+--Event.add(de.on_permission_group_edited, on_permission_group_edited)
+--Event.add(de.on_permission_string_imported, on_permission_string_imported)
 
 return Public
